@@ -5,22 +5,55 @@ on:
     types: [opened, edited, synchronize, reopened] # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#pull_request
 
 env:
-  REGEXP_FOR_COMMITS_AND_TITLE: '^([A-Z]+-[0-9]{1,10}\ .{9,49}[\w])$'  # JIRA-000: Any pr title length from 10 to 72 ending with word character
-  MAX_LENGTH_REGEXP: '^.{9,72}[\w])$'  # Any pr title of length from 10 to 72 symbols ending with word character
+  LENGTH_REGEXP: '^.{20,72}[\w]$'  # Any pr title of length from 10 to 72 symbols ending with word character (to omit commits with dots e.g.)
+  JIRA_ISSUE_AT_START_REGEXP: '^[A-Z]+-[0-9]{1,10}'  # Jira issue is presented at the start of commit or pr title
 
 jobs:
-  check_title:
+  lint_pr_title_and_commits:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Fetch depth is required for lintje/action
-      - run: |
-          echo "${{ env.REGEXP_FOR_COMMITS_AND_TITLE }}"
-      - name: Check pr title length is from 10 to 72 chars and end with word character
-      - uses: Slashgear/action-check-pr-title@3.0.0
+          fetch-depth: 0 # Fetch depth is required
+
+      - name: '[PR Title] length is from 10 to 72 chars and ends with word character'
+        uses: Slashgear/action-check-pr-title@v3.0.0
         with:
-          regex: ${{ env.MAX_LENGTH_REGEXP }}
-      - name: Check pr title contains jira issue
-        uses: ryanvade/enforce-pr-title-style-action@v1
-      - uses: lintje/action@v0.11
+          regexp: ${{ env.LENGTH_REGEXP }}
+
+      - name: '[PR Title] jira issue exists at the start'
+        uses: Slashgear/action-check-pr-title@v3.0.0
+        with:
+          regexp: ${{ env.JIRA_ISSUE_AT_START_REGEXP }}
+
+      - name: '[Commits] length is from 10 to 72 chars and ends with word character'
+        uses: gsactions/commit-message-checker@v2
+        with:
+          pattern: ${{ env.LENGTH_REGEXP }}
+          error: 'Length of commits should be from 10 to 72 chars and should end with word character'
+          excludeDescription: 'true' # this excludes the description body of a pull request
+          excludeTitle: 'true' # pr title checks happen in another steps
+          checkAllCommitMessages: 'true'
+          accessToken: ${{ secrets.GITHUB_TOKEN }} # github access token is required for checkAllCommitMessages
+
+      - name: '[Commits] jira issue exists at the start'
+        uses: gsactions/commit-message-checker@v2.0.0
+        with:
+          pattern: ${{ env.JIRA_ISSUE_AT_START_REGEXP }}
+          error: 'Commits should have jira issue at the start'
+          excludeDescription: 'true' # this excludes the description body of a pull request
+          excludeTitle: 'true' # pr title checks happen in another steps
+          checkAllCommitMessages: 'true'
+          accessToken: ${{ secrets.GITHUB_TOKEN }} # github access token is required for checkAllCommitMessages
+
+      - name: '[Commits] follow good rules of commit from https://cbea.ms/git-commit/'
+        uses: platisd/bad-commit-message-blocker@1.0.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          subject_limit: 72
+          body_limit: 72
+          remote_branch: ${{ github.event.repository.default_branch || 'master' }}
+
+      - name: 'Logging default branch'
+        run:
+          echo "${{ github.event.repository.default_branch }}"
