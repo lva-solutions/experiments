@@ -1,0 +1,26 @@
+name: pr
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened] # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#pull_request
+
+env:
+  REGEXP_FOR_COMMITS_AND_TITLE: '^([A-Z]+-[0-9]{1,10}\ .{9,49}[\w])$'  # JIRA-000: Any pr title length from 10 to 72 ending with word character
+  MAX_LENGTH_REGEXP: '^.{9,72}[\w])$'  # Any pr title of length from 10 to 72 symbols ending with word character
+
+jobs:
+  check_title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch depth is required for lintje/action
+      - run: |
+          echo "${{ env.REGEXP_FOR_COMMITS_AND_TITLE }}"
+      - name: Check pr title length is from 10 to 72 chars and end with word character
+      - uses: Slashgear/action-check-pr-title@3.0.0
+        with:
+          regex: ${{ env.MAX_LENGTH_REGEXP }}
+      - name: Check pr title contains jira issue
+        uses: ryanvade/enforce-pr-title-style-action@v1
+      - uses: lintje/action@v0.11
